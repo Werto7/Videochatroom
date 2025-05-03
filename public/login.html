@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Buttons oben rechts + Formular darunter</title>
+    <style>
+        .formular-container {
+            margin: 20px;
+            max-width: 400px;
+            background-color: #f2f2f2;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+
+        .formular-container input, .formular-container button {
+            display: block;
+            width: 100%;
+            margin-bottom: 10px;
+            padding: 10px;
+            font-size: 1em;
+        }
+
+        .formular-container button {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<div class="formular-container">
+    <form id="meinFormular" action="/register" method="POST">
+        <input id="username" type="text" name="benutzername" placeholder="Benutzername" required>
+        <input id="pass" type="password" name="password" placeholder="Passwort" required>
+        <div id="fehlermeldung"></div>
+        <button id="login" type="submit">Login</button>
+    </form>
+</div>
+
+<script>
+window.addEventListener('pageshow', function(event) {
+  // Prüfen, ob die Seite vom Cache geladen wurde (Back/Forward)
+  if (event.persisted || performance.getEntriesByType("navigation")[0].type === "back_forward") {
+    location.reload() // Seite neu laden
+  }
+})
+fetch('/registered')
+    .then(response => response.json())
+    .then(regData => {
+      if (regData.registered) {
+      	window.location.href = '/rooms';
+      }
+    })
+document.getElementById('meinFormular').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  
+  const form = e.target;
+
+  const response = await fetch('/loginreg', {
+    method: 'POST',
+    body: new URLSearchParams(new FormData(form)),
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded'
+    }
+  });
+
+  const fehlerBox = document.getElementById('fehlermeldung');
+
+  const data = await response.json();
+
+  if (response.ok && data.erfolg) {
+    window.location.href = '/rooms';
+  } else {
+    if (fehlerBox) {
+      fehlerBox.textContent = getTranslation(data.fehler) || 'Unbekannter Fehler';
+      fehlerBox.style.color = 'red';
+    } else {
+      alert(data.fehler || 'Unbekannter Fehler');
+    }
+  }
+});
+</script>
+<script src="translate.js" defer></script>
+</body>
+</html>
