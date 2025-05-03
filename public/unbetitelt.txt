@@ -1,3 +1,0 @@
-Du hast geschrieben:
-"Das bedeutet: Egal, ob dein Browser im Dunkelmodus ist – das Overlay bleibt weiß, und ohne explizite Schriftfarbe wird der Text (der vermutlich weiß ist) unsichtbar auf weißem Hintergrund.".
-Wenn das Overlay weiß bleiben würde, egal ob mein Browser im Dunkelmodus ist, dann hätte ich den p Element sehen müssen, was aber nicht der Fall war.
