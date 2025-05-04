@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Videochaträume</title>
+  <style>
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+    td {
+      padding: 10px;
+      vertical-align: middle;
+    }
+    .chatroom-button {
+      padding: 8px 16px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .chatroom-button:hover {
+      background-color: #45a049;
+    }
+    /* schon vorhanden */
+.button-container {
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-end;
+  margin: 20px 20px 0 20px;
+  gap: 10px;
+}
+
+/* für Spaltenanzeige beim Login */
+.button-container.column {
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0; /* du kannst das später mit JS überschreiben */
+}
+
+        .button-container button {
+            padding: 10px 20px;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+   .overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: white;
+  z-index: 1000;
+  overflow: hidden; /* oder 'auto' bei Bedarf */
+}
+
+.overlay-inhalt {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+  padding-top: 30px;
+}
+
+.zurueck-symbol {
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 1001;
+}
+  </style>
+</head>
+<body>
+<div id="container" class="button-container">
+    <button id="login" onclick="window.location.href='login.html'">Login</button>
+    <button id="register" onclick="window.location.href='registration.html'">Registrieren</button>
+</div>
+<table id="room-table">
+    <tr>
+      <td><button id="videochatroom1" class="chatroom-button">Videochatraum</button></td>
+      <td></td>
+    </tr>
+</table>
+<div id="overlay" class="overlay" style="display: none;">
+  <img id="zurueck-icon" src="back.jpg" alt="Zurück" class="zurueck-symbol">
+  <!-- Dein eigener Inhalt hier -->
+</div>
+<script>
+  let gender = null;
+  let registered = false;
+  fetch('/registered')
+    .then(response => response.json())
+    .then(regData => {
+      if (regData.registered) {
+      	registered = true;
+  const container = document.getElementById('container')
+  container.innerHTML = '' // Inhalt leeren
+  container.classList.add('column')
+
+  fetch('/name')
+    .then(response => response.json())
+    .then(nameData => {
+      // Benutzername anzeigen
+      const nameDiv = document.createElement('div')
+      nameDiv.textContent = nameData.name
+      nameDiv.style.margin = '0'
+      nameDiv.style.padding = '0'
+      nameDiv.style.fontSize = '14px'
+      nameDiv.style.lineHeight = '1'
+      
+      // Abstand zum Button genau einstellen
+      nameDiv.style.marginBottom = '2px' // hier millimetergenau steuern
+
+      // Logout-Button
+      const logoutBtn = document.createElement('button')
+      logoutBtn.textContent = getTranslation('logout')
+      logoutBtn.className = 'chatroom-button'
+      logoutBtn.style.margin = '0'
+      logoutBtn.style.padding = '6px 12px'
+      logoutBtn.style.fontSize = '13px'
+      logoutBtn.onclick = () => {
+          fetch('/logout', {
+              method: 'POST'
+          }).then(() => {
+              window.location.href = '/index.html'
+          })
+        }
+
+      // Einfügen
+      container.appendChild(nameDiv)
+      container.appendChild(logoutBtn)
+
+      // Chaträume ggf. anzeigen
+      fetch('/geschlecht')
+        .then(response => response.json())
+        .then(data => {
+          if (data.geschlecht === 'weiblich') {
+          	gender = "w"
+            const table = document.getElementById('room-table')
+
+            const tr1 = document.createElement('tr')
+            tr1.innerHTML = `<td><button id="videochatroom2" class="chatroom-button">` + getTranslation("videochatroom2") + `</button></td><td></td>`
+            table.appendChild(tr1)
+
+            const tr2 = document.createElement('tr')
+            tr2.innerHTML = `<td><button onclick="zeigeOverlay()" id="videochatroom3" class="chatroom-button">` + getTranslation("videochatroom3") + `</button></td><td></td>`
+            table.appendChild(tr2)
+          }
+        })
+    })
+} else {
+        // Und jetzt den ursprünglichen /geschlecht-Fetch starten
+        fetch('/geschlecht')
+          .then(response => response.json())
+          .then(data => {
+            if (data.geschlecht === 'weiblich') {
+            	gender = "w"
+              const table = document.getElementById('room-table')
+
+              const tr1 = document.createElement('tr')
+              tr1.innerHTML = `<td><button id="videochatroom2" class="chatroom-button">` + getTranslation("videochatroom2") + `</button></td><td></td>`
+              table.appendChild(tr1)
+
+              const tr2 = document.createElement('tr')
+              tr2.innerHTML = `<td><button onclick="zeigeOverlay()" id="videochatroom3" class="chatroom-button">` + getTranslation("videochatroom3") + `</button></td><td></td>`
+              table.appendChild(tr2)
+            }
+          })
+      }
+    })
+    
+function zeigeOverlay() {
+  document.getElementById('overlay').style.display = 'block'
+  document.getElementById('room-table').style.display = 'none'
+  if (gender == "w") {
+  	if (registered === true) {
+    const iframe = document.createElement('iframe');
+iframe.src = '/upload-page';
+iframe.className = 'overlay-inhalt';
+iframe.style.width = '100%';
+iframe.style.height = '100vh';
+iframe.style.border = 'none';
+
+document.getElementById('overlay').style.display = 'block';
+document.getElementById('overlay').appendChild(iframe);
+}
+      else {
+      	const overlay = document.getElementById('overlay')
+  overlay.style.display = 'block'
+
+  const inhalt = document.createElement('div')
+  inhalt.className = 'overlay-inhalt'
+  inhalt.innerHTML = `
+    <h2>` + getTranslation("privateTitle") + `</h2>
+    <p>` + getTranslation("privateText") + `</p>
+  `
+  overlay.appendChild(inhalt)
+      }
+  }
+}
+
+document.getElementById('zurueck-icon').addEventListener('click', () => {
+  const overlay = document.getElementById('overlay')
+  overlay.style.display = 'none'
+  
+  document.getElementById('room-table').style.display = ''
+  
+  // Textinhalt entfernen, damit er nicht doppelt erscheint beim nächsten Mal
+  const altInhalt = document.querySelector('.overlay-inhalt')
+  if (altInhalt) altInhalt.remove()
+})
+</script>
+<script src="translate.js" defer></script>
+</body>
+</html>

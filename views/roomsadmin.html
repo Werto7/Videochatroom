@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Videochaträume</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      padding: 0;
+      overflow-x: hidden;
+    }
+
+    .menu-icon {
+      width: 32px;
+      height: 32px;
+      cursor: pointer;
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      z-index: 1100;
+    }
+
+    .button-container {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      z-index: 1100;
+    }
+
+    .button-container button {
+      padding: 10px 20px;
+      background-color: #007BFF;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    .sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 200px;
+  height: 100%;
+  background-color: #333;
+  color: white;
+  padding: 20px;
+  transform: translateX(-100%);
+  transition: transform 0.3s ease;
+  z-index: 1050;
+  box-sizing: border-box;
+  padding-top: 40px;
+}
+
+.sidebar.show {
+  transform: translateX(0);
+}
+
+    .tab {
+      display: none;
+      padding: 60px 20px 20px 20px; /* Platz oben für Menü und Button */
+    }
+
+    .tab.active {
+      display: block;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    td {
+      padding: 10px;
+      vertical-align: middle;
+    }
+
+    .chatroom-button {
+      padding: 8px 16px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    .chatroom-button:hover {
+      background-color: #45a049;
+    }
+
+    .overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: white;
+      z-index: 1000;
+      overflow: hidden;
+      display: none;
+    }
+
+    .overlay-inhalt {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      border: none;
+      padding-top: 30px;
+    }
+
+    .zurueck-symbol {
+      width: 32px;
+      height: 32px;
+      cursor: pointer;
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 1001;
+    }
+    
+    .klickbare-box {
+  background-color: #444;
+  color: white;
+  padding: 10px;
+  margin: 5px 0;
+  border-radius: 5px;
+  cursor: pointer;
+  user-select: none;
+}
+.klickbare-box:hover {
+  background-color: #555;
+}
+
+  </style>
+</head>
+<body>
+
+<!-- Menü-Icon -->
+<img id="menu-icon" src="menu.png" alt="Menü" class="menu-icon">
+
+<!-- Seitenleiste -->
+<div id="sidebar" class="sidebar">
+  <p><a href="#" style="color: white;" onclick="switchTab(1)">Videochaträume</a></p>
+  <p><a href="#" style="color: white;" onclick="switchTab(2)">Verifizierungs-Anfragen</a></p>
+</div>
+
+<!-- Logout-Button -->
+<div class="button-container">
+  <button onclick="logout()">Ausloggen</button>
+</div>
+
+<!-- Registerkarte 1 -->
+<div id="tab1" class="tab active">
+  <table id="room-table">
+    <tr><td><button id="videochatroom1" class="chatroom-button">Videochatraum</button></td><td></td></tr>
+    <tr><td><button id="videochatroom2" class="chatroom-button">Videochatraum</button></td><td></td></tr>
+    <tr><td><button id="videochatroom3" class="chatroom-button">Videochatraum</button></td><td></td></tr>
+  </table>
+
+  <div id="overlay" class="overlay">
+    <img id="zurueck-icon" src="back.jpg" alt="Zurück" class="zurueck-symbol">
+    <div id="overlay-inhalt" class="overlay-inhalt"></div>
+  </div>
+</div>
+
+<!-- Registerkarte 2 -->
+<div id="tab2" class="tab">
+  <div id="namensListe"></div>
+</div>
+
+<script>
+function logout() {
+  fetch('/logout', { method: 'POST' }).then(() => {
+    window.location.href = '/index.html';
+  });
+}
+
+// Menü ein-/ausblenden
+document.getElementById('menu-icon').addEventListener('click', () => {
+  document.getElementById('sidebar').classList.toggle('show');
+});
+
+// Overlay zurück
+document.getElementById('zurueck-icon').addEventListener('click', () => {
+  document.getElementById('overlay').style.display = 'none';
+  document.getElementById('namensListe').style.display = 'block';
+  document.getElementById('overlay-inhalt').innerHTML = '';
+});
+
+// Tab-Umschaltung
+function switchTab(tabNum) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab' + tabNum).classList.add('active');
+  document.getElementById('sidebar').classList.remove('show'); // Menü ausblenden
+
+  if (tabNum === 2) {
+    fetch('/get-request-names', {
+      method: 'POST'
+    })
+    .then(res => res.json())
+    .then(data => {
+      const container = document.getElementById('namensListe');
+      container.innerHTML = ''; // vorherige Inhalte entfernen
+
+      data.namen.forEach(name => {
+        const element = document.createElement('div');
+        element.textContent = name;
+        element.className = 'klickbare-box';
+        element.addEventListener('click', () => {
+          document.getElementById('overlay').style.display = 'block'
+          document.getElementById('namensListe').style.display = 'none'
+          
+          const overlayInhalt = document.getElementById('overlay-inhalt');
+          overlayInhalt.innerHTML += `<p style="color:black;">${name}</p>`;
+        });
+        container.appendChild(element);
+      });
+    })
+    .catch(err => {
+      console.error('Fehler beim Laden der Namen:', err);
+    });
+  }
+}
+</script>
+
+<script src="translate.js" defer></script>
+</body>
+</html>
