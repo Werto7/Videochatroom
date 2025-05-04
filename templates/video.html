@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Video aufnehmen</title>
+  <style>
+    #recordingIndicator {
+      display: none;
+      color: red;
+      font-weight: bold;
+    }
+    #livePreview, #videoPreview {
+      width: 320px;
+      height: 240px;
+      border: 1px solid #ccc;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <p id="info">Bitte nimm ein kurzes Video auf:</p>
+
+  <button id="startBtn">Aufnehmen</button>
+  <button id="stopBtn" disabled>Stopp</button>
+  <br>
+  <div id="recordingIndicator">
+    ● Aufnahme läuft... <span id="timer">0:00</span>
+  </div>
+
+  <video id="livePreview" autoplay muted></video>
+  <div id="preview"></div>
+
+  <br>
+  <button id="submitBtn" disabled>Absenden</button>
+
+  <script>
+    let mediaRecorder;
+    let videoChunks = [];
+    let stream;
+    let startTime;
+    let timerInterval;
+
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const recordingIndicator = document.getElementById('recordingIndicator');
+    const timerDisplay = document.getElementById('timer');
+    const livePreview = document.getElementById('livePreview');
+    const preview = document.getElementById('preview');
+    const submitBtn = document.getElementById('submitBtn');
+    let videoBlob;
+
+    function startTimer() {
+      startTime = Date.now();
+      timerInterval = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - startTime) / 1000);
+        const minutes = Math.floor(elapsed / 60);
+        const seconds = elapsed % 60;
+        timerDisplay.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+      }, 500);
+    }
+
+    function stopTimer() {
+      clearInterval(timerInterval);
+      timerDisplay.textContent = "0:00";
+    }
+
+    startBtn.onclick = async () => {
+      stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      livePreview.srcObject = stream;
+
+      mediaRecorder = new MediaRecorder(stream);
+      videoChunks = [];
+
+      mediaRecorder.ondataavailable = e => videoChunks.push(e.data);
+
+      mediaRecorder.onstop = () => {
+        videoBlob = new Blob(videoChunks, { type: 'video/webm' });
+        const videoURL = URL.createObjectURL(videoBlob);
+        const video = document.createElement('video');
+        video.controls = true;
+        video.src = videoURL;
+        video.width = 320;
+        video.height = 240;
+        video.addEventListener('ended', () => {
+            video.currentTime = 0;
+        });
+        preview.innerHTML = '';
+        preview.appendChild(video);
+        submitBtn.disabled = false;
+        livePreview.srcObject = null;
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      startBtn.disabled = true;
+      stopBtn.disabled = false;
+      recordingIndicator.style.display = 'inline';
+      startTimer();
+    };
+
+    stopBtn.onclick = () => {
+      mediaRecorder.stop();
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+      recordingIndicator.style.display = 'none';
+      stopTimer();
+    };
+
+    submitBtn.onclick = () => {
+      alert('Video wurde bereit zur Übertragung vorbereitet!');
+      // Hier könnte man das Video z.B. mit fetch/FormData an einen Server senden
+    };
+  </script>
+</body>
+</html>

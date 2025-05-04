@@ -1,1 +1,225 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Audio aufnehmen</title>
+  <style>
+    #recordingIndicator {
+      display: none;
+      color: red;
+      font-weight: bold;
+    }
+    #uploadIndicator {
+      display: none;
+      font-weight: bold;
+    }
+    #uploadProgress {
+      vertical-align: middle;
+    }
+    #uploadPercentage {
+      margin-left: 5px;
+    }
+    #preview {
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <p>{{INFO}}</p>
 
+  <button id="startBtn">Aufnehmen</button>
+  <button id="stopBtn" disabled>Stopp</button>
+  <div id="recordingIndicator">
+    <br>
+    <span id="recordingText">● Aufnahme läuft... </span><span id="timer">0:00</span>
+  </div>
+  <div id="preview"></div><br>
+  <div id="uploadIndicator" style="display: none;">
+      <progress id="uploadProgress" value="0" max="100"></progress><br>
+      <span id="uploadPercentage">0%</span>
+      <br>
+</div>
+  <button id="submitBtn" disabled>Absenden</button>
+
+  <script>
+window.onload = function() {
+  const translations = JSON.parse(document.getElementById('translations').textContent);
+  
+  function getTranslation(key) {
+      const lang = detectLanguage();
+      if (translations[lang] && translations[lang][key]) {
+          return translations[lang][key];
+      }
+      return null;
+    }
+
+  function detectLanguage() {
+    const lang = navigator.language.slice(0, 2);
+    return translations[lang] ? lang : 'en';
+  }
+
+  function applyTranslations(lang) {
+    const t = translations[lang];
+    document.title = t.title;
+    document.getElementById('startBtn').textContent = t.record;
+    document.getElementById('stopBtn').textContent = t.stop;
+    document.getElementById('submitBtn').textContent = t.sending;
+    document.getElementById('recordingText').textContent = t.recording;
+  }
+
+  const currentLang = detectLanguage();
+  applyTranslations(currentLang);
+
+  let mediaRecorder;
+  let audioChunks = [];
+  let startTime;
+  let timerInterval;
+  let audioBlob;
+  let stream;
+
+  const startBtn = document.getElementById('startBtn');
+  const stopBtn = document.getElementById('stopBtn');
+  const recordingIndicator = document.getElementById('recordingIndicator');
+  const timerDisplay = document.getElementById('timer');
+  const preview = document.getElementById('preview');
+  const submitBtn = document.getElementById('submitBtn');
+
+  function startTimer() {
+    startTime = Date.now();
+    timerInterval = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      const minutes = Math.floor(elapsed / 60);
+      const seconds = elapsed % 60;
+      timerDisplay.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    }, 500);
+  }
+
+  function stopTimer() {
+    clearInterval(timerInterval);
+    timerDisplay.textContent = "0:00";
+  }
+
+  startBtn.onclick = async () => {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorder = new MediaRecorder(stream);
+      audioChunks = [];
+
+      mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+
+      mediaRecorder.onstop = () => {
+        audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        const audioURL = URL.createObjectURL(audioBlob);
+        const audio = document.createElement('audio');
+        audio.controls = true;
+        audio.src = audioURL;
+
+        preview.innerHTML = '';
+        audio.addEventListener('ended', () => {
+            audio.currentTime = 0;
+        });
+
+        preview.appendChild(audio);
+        submitBtn.disabled = false;
+      };
+
+      mediaRecorder.start();
+      startBtn.disabled = true;
+      stopBtn.disabled = false;
+      recordingIndicator.style.display = 'inline';
+      startTimer();
+    } catch (err) {
+      alert('Fehler beim Zugriff auf das Mikrofon: ' + err.message);
+    }
+  };
+
+  stopBtn.onclick = () => {
+    mediaRecorder.stop();
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+    }
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+    recordingIndicator.style.display = 'none';
+    stopTimer();
+  };
+
+  submitBtn.onclick = () => {
+    const formData = new FormData();
+    formData.append('audio', audioBlob, '{{USER}}');
+
+    const xhr = new XMLHttpRequest();
+    const progressBar = document.getElementById('uploadProgress');
+    const percentageText = document.getElementById('uploadPercentage');
+    progressBar.style.display = 'block';
+    percentageText.style.display = 'inline';
+    progressBar.style.display = 'inline';
+    document.getElementById('uploadIndicator').style.display = 'inline';
+
+    progressBar.value = 0;
+    percentageText.textContent = '0%';
+
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        const percent = (event.loaded / event.total) * 100;
+        progressBar.value = percent;
+        percentageText.textContent = `${Math.round(percent)}%`;
+      }
+    };
+
+    xhr.onload = () => {
+      if (xhr.status === 200) {
+        document.body.innerHTML = getTranslation("info4");
+      } else {
+        alert('Fehler beim Hochladen.');
+      }
+      progressBar.style.display = 'none';
+      percentageText.style.display = 'none';
+    };
+
+    xhr.onerror = () => {
+      alert('Verbindungsfehler.');
+      progressBar.style.display = 'none';
+      percentageText.style.display = 'none';
+    };
+
+    xhr.open('POST', '/request');
+    xhr.send(formData);
+  };
+};
+</script>
+<script id="translations" type="application/json">
+{
+  "de": {
+    "title": "Audio aufnehmen",
+    "record": "Aufnehmen",
+    "stop": "Stopp",
+    "sending": "Absenden",
+    "recording": "● Aufnahme läuft...",
+    "uploadSuccess": "Audio wurde bereit zur Übertragung vorbereitet!",
+    "info4": "Ein Admin muss noch deine Verifizierungs-Anfrage überprüfen. Versuche später wieder in diesen Videochatraum beizutreten."
+  },
+  "en": {
+    "title": "Record Audio",
+    "record": "Record",
+    "stop": "Stop",
+    "sending": "Submit",
+    "recording": "● Recording...",
+    "uploadSuccess": "Audio is ready to be sent!",
+    "recordingText": "Recording",
+    "info4": "An admin still needs to review your verification request. Try joining this video chat room again later."
+  },
+  "es": {
+    "title": "Grabar audio",
+    "record": "Grabar",
+    "stop": "Detener",
+    "sending": "Enviar",
+    "recording": "● Grabando...",
+    "uploadSuccess": "¡El audio está listo para ser enviado!",
+    "recordingText": "Recording",
+    "info4": "Un administrador aún necesita revisar tu solicitud de verificación. Intenta unirte a esta sala de video chat nuevamente más tarde."
+  }
+}
+</script>
+</body>
+</html>
