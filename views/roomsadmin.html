@@ -96,7 +96,7 @@
       width: 100%;
       height: 100%;
       background-color: white;
-      z-index: 1000;
+      z-index: 2000;
       overflow: hidden;
       display: none;
     }
@@ -118,7 +118,7 @@
       position: absolute;
       top: 10px;
       left: 10px;
-      z-index: 1001;
+      z-index: 2001;
     }
     
     .klickbare-box {
@@ -159,11 +159,6 @@
     <tr><td><button id="videochatroom2" class="chatroom-button">Videochatraum</button></td><td></td></tr>
     <tr><td><button id="videochatroom3" class="chatroom-button">Videochatraum</button></td><td></td></tr>
   </table>
-
-  <div id="overlay" class="overlay">
-    <img id="zurueck-icon" src="back.jpg" alt="Zurück" class="zurueck-symbol">
-    <div id="overlay-inhalt" class="overlay-inhalt"></div>
-  </div>
 </div>
 
 <!-- Registerkarte 2 -->
@@ -171,6 +166,10 @@
   <div id="namensListe"></div>
 </div>
 
+<div id="overlay" class="overlay">
+    <img id="zurueck-icon" src="back.jpg" alt="Zurück" class="zurueck-symbol">
+    <div id="overlay-inhalt" class="overlay-inhalt"></div>
+</div>
 <script>
 function logout() {
   fetch('/logout', { method: 'POST' }).then(() => {
