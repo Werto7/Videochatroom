@@ -1,6 +1,5 @@
 {
   "en": {
-    "register": "Register",
     "username": "Username",
     "age": "Age",
     "male": "Male",
@@ -8,23 +7,15 @@
     "list": "View list of video chat rooms",
     "warning": "You must be at least 18 years old",
     "videochatroom1": "Video chat room",
-    "videochatroom2": "Lesbians",
-    "videochatroom3": "Verified lesbians",
     "pass": "Password",
     "userExists": "Username already taken",
     "logout": "Log out",
     "userNotFound": "This user does not exist",
     "wrongPassword": "Wrong password",
-    "privateTitle": "Lesbian area",
-    "privateText": "You must register to be able to join this video chat room",
-    "info1": "You must send an audio for verification.<br><br>Record the audio in the following order: First, say, 'I am a woman.' Then, say your age. And then, say which continent you're from.",
-    "info2": "Your verification request was rejected.<br><br>Reason:<br>{{Grund}}",
-    "info3": "You must send a video for verification.<br><br>Film the video in the following order: First, make a five with your fingers. Then, show a smile. And finally, hold your hand close to your eyes.",
-    "info4": "An admin still needs to review your verification request. Try joining this video chat room again later."
+    "ban": "You have been banned.<br><br>Reason:<br>{{REASON}}"
   },
   "es": {
     "login": "Ingresar",
-    "register": "Registrarse",
     "username": "Nombre de usuario",
     "age": "Edad",
     "male": "Hombre",
@@ -32,33 +23,19 @@
     "list": "Ver lista de salas de video chat",
     "warning": "Debes tener al menos 18 años",
     "videochatroom1": "Sala de videochat",
-    "videochatroom2": "Lesbianas",
-    "videochatroom3": "Lesbianas verificadas",
     "pass": "Contraseña",
     "userExists": "El nombre de usuario ya está en uso",
     "logout": "Cerrar sesión",
     "userNotFound": "Este usuario no existe",
     "wrongPassword": "Contraseña incorrecta",
-    "privateTitle": "Zona de lesbianas",
-    "privateText": "Debes registrarte para poder unirte a esta sala de video chat",
-    "info1": "Debes enviar un audio para la verificación.<br><br>Graba el audio en el siguiente orden: Primero, di: «Soy mujer». Luego, di tu edad. Y finalmente, di de qué continente eres.",
-    "info2": "Tu solicitud de verificación fue rechazada.<br><br>Razón:<br>{{Grund}}",
-    "info3": "Debes enviar un video para la verificación.<br><br>Graba el video en el siguiente orden: Primero, muestra un cinco con los dedos. Luego, sonríe. Y, por último, ponte la mano cerca de los ojos.",
-    "info4": "Un administrador aún necesita revisar tu solicitud de verificación. Intenta unirte a esta sala de video chat nuevamente más tarde."
+    "ban": "Fuiste baneado.<br><br>Razon:<br>{{REASON}}"
   },
   "de": {
     "warning": "Du musst mindestens 18 Jahre alt sein",
     "userExists": "Benutzername bereits vergeben",
     "logout": "Ausloggen",
-    "videochatroom2": "Lesben",
-    "videochatroom3": "Verifizierte Lesben",
     "userNotFound": "Dieser Nutzer existiert nicht",
     "wrongPassword": "Falsches Passwort",
-    "privateTitle": "Lesbenbereich",
-    "privateText": "Du musst dich registrieren, um diesem Video-Chatroom beitreten zu können",
-    "info1": "Du musst zur Verifizierung ein Audio schicken.<br><br>Nehme den Audio in folgender Reihenfolge auf: Zuerst sagst du: 'Ich bin eine Frau'. Anschließend sagst du dein Alter. Und Anschließend sagst du aus welchem Kontinent du kommst.",
-    "info2": "Deine Verifizierung-Anfrage wurde abgelehnt.<br><br>Grund:<br>{{Grund}}",
-    "info3": "Du musst zur Verifizierung ein Video schicken.<br><br>Filme den Video in folgende Reihenfolge: Zuerst zeige mit deinen Fingern eine fünf. Anschließend zeige ein Lächeln. Und Anschließend halte deine Hand nah vor deinen Augen",
-    "info4": "Ein Admin muss noch deine Verifizierungs-Anfrage überprüfen. Versuche später wieder in diesen Videochatraum beizutreten."
+    "ban": "Du wurdest gesperrt.<br><br>Grund:<br>{{REASON}}"
     }
 }
