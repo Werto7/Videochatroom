@@ -2,16 +2,8 @@ const express = require('express')
 const session = require('express-session')
 const path = require('path')
 const fs = require('fs')
-const multer = require('multer');
-
-const storage = multer.diskStorage({
-  destination: 'verifications/requests/',
-  filename: (req, file, cb) => {
-    cb(null, file.originalname);
-  }
-});
-
-const upload = multer({ storage });
+const http = require('http')
+const https = require('https');
 
 const app = express()
 
@@ -25,23 +17,45 @@ app.use(session({
   saveUninitialized: true
 }))
 
-// Zugriff auf rooms.html über eigene Route mit Prüfung
+//Access to rooms.html via own route with verification
 app.get('/rooms', (req, res) => {
+  const reason = isBanned(req);
+  if (reason) {
+  return res.send(`
+    <!DOCTYPE html>
+    <html lang="de">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Gesperrt</title>
+      <style>
+        body {
+          font-family: sans-serif;
+          padding: 1rem;
+          line-height: 1.5;
+        }
+      </style>
+    </head>
+    <body>
+      <p>${reason}</p>
+    </body>
+    </html>
+  `);
+   }
+
   if (!req.session.geschlecht) {
     return res.redirect('/index.html')
   }
-  const usersPath = path.join(__dirname, 'users.json');
+  const usersPath = path.join(__dirname, 'admins.json');
   if (!fs.existsSync(usersPath)) {
-    return res.status(500).send('Benutzerdaten nicht gefunden.');
+    return res.status(500).send('Admin not found.');
   }
 
   const users = JSON.parse(fs.readFileSync(usersPath, 'utf8'));
 
-  const aktuellerBenutzer = users.find(user => user.benutzername === req.session.username);
+  const isAdmin = users.find(user => user.benutzername === req.session.username);
 
-  const istAdmin = aktuellerBenutzer && aktuellerBenutzer.admin === true;
-
-  if (istAdmin) {
+  if (isAdmin) {
   	res.sendFile(path.join(__dirname, 'views', 'roomsadmin.html'))
   }
   else {
@@ -49,76 +63,56 @@ app.get('/rooms', (req, res) => {
   }
 })
 
-// Route für AJAX-Anfrage in rooms.html
+//Route for AJAX request in rooms.html
 app.get('/geschlecht', (req, res) => {
   res.json({ geschlecht: req.session.geschlecht || null })
 })
 
-app.get('/registered', (req, res) => {
-  res.json({ registered: req.session.registered || null })
-})
+app.get('/icons/:name', (req, res) => {
+  const name = req.params.name;
+  const filePath = path.join(__dirname, 'views', 'roomtypes', 'icons', `${name}`);
+
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).send('Icon nicht gefunden');
+  }
+
+  res.sendFile(filePath);
+});
 
 app.get('/name', (req, res) => {
   res.json({ name: req.session.username || null })
 })
 
 app.get('/upload-page', (req, res) => {
-  if (dateiExistiertOhneEndung('verifications/requests', req.session.username)) {
-  	const translationsPath = path.join(__dirname, 'public', 'translations.json');
-      let translations = {};
-
-      try {
-        translations = JSON.parse(fs.readFileSync(translationsPath, 'utf8'));
-      } catch (err) {
-        return res.status(500).send('<p>Fehler beim Laden der Übersetzungen</p>');
-      }
-      
-      const acceptLang = req.headers["accept-language"] || "en";
-      const sprache = acceptLang.startsWith("de") ? "de" :
-                    acceptLang.startsWith("es") ? "es" : "en";
-
-      const text = translations[sprache]?.info4 || 'Fehler';
-
-      res.send(`<p>${text}</p>`);
-  }
-  else if (dateiExistiertOhneEndung('verifications/reasons', req.session.username)) {
-  	
-  }
-  else {
-  	const filePath = path.join(__dirname, 'templates', 'audio.html');
-
-      fs.readFile(filePath, 'utf8', (err, html) => {
-          if (err) {
-              return res.status(500).send('Fehler beim Laden der Seite');
-          }
-
-      // Platzhalter ersetzen (z. B. Benutzername aus Session)
-      
-      const translationsPath = path.join(__dirname, 'public', 'translations.json');
-      let translations = {};
-
-      try {
-        translations = JSON.parse(fs.readFileSync(translationsPath, 'utf8'));
-      } catch (err) {
-        return res.status(500).send('<p>Fehler beim Laden der Übersetzungen</p>');
-      }
-      
-      const acceptLang = req.headers["accept-language"] || "en";
-      const sprache = acceptLang.startsWith("de") ? "de" :
-                    acceptLang.startsWith("es") ? "es" : "en";
-
-      const text = translations[sprache]?.info1 || 'Fehler';
-      
-      const benutzername = req.session.username;
-      const bearbeitetesHTML = html
-        .replace('{{INFO}}', text)
-        .replace('{{USER}}', benutzername + '.webm');
-      res.send(bearbeitetesHTML);
-      });
-  }
+	const room = req.query.room;
+	const reason = isBanned(req);
+    if (reason) {
+    	return res.send(`<p>${reason}</p>`);
+    }
+    let gender;
+    if (req.session.geschlecht == "weiblich") {
+    	gender = "w";
+    }
+    else {
+    	gender = "m";
+    }
+    if (room == 1) {
+    	const requestsPath = path.join(__dirname, 'views', 'roomtypes');
+        const filePath = path.join(requestsPath, "user.html");
+        fs.readFile(filePath, 'utf8', (err, html) => {
+            if (err) {
+                return res.status(500).send('Fehler beim Laden der Seite');
+            }
+            const bearbeitetesHTML = html
+                              .replace('{{ROOM}}', 'Videochatroom')
+                              .replace('{{USER}}', req.session.username)
+                              .replace('{{GENDER}}', gender);
+            res.send(bearbeitetesHTML);
+        });
+    }
 });
 
-// POST-Empfang vom Formular
+//POST receipt of the form
 app.post('/login', (req, res) => {
   const { benutzername, alter, geschlecht } = req.body
 
@@ -127,7 +121,8 @@ app.post('/login', (req, res) => {
   }
 
   req.session.geschlecht = geschlecht
-  res.redirect('/rooms') // Achtung: neue Route!
+  req.session.username = benutzername
+  res.redirect('/rooms') //Attention: new route!
 })
 
 app.post('/loginreg', (req, res) => {
@@ -137,7 +132,7 @@ app.post('/loginreg', (req, res) => {
     return res.status(400).json({ fehler: 'Benutzername und Passwort erforderlich.' })
   }
 
-  const usersPath = path.join(__dirname, 'users.json')
+  const usersPath = path.join(__dirname, 'admins.json')
 
   if (!fs.existsSync(usersPath)) {
       return res.status(500).json({ fehler: 'userNotFound' })
@@ -162,6 +157,20 @@ app.post('/loginreg', (req, res) => {
   if (nutzer.password !== password) {
       return res.status(401).json({ fehler: 'wrongPassword' })
   }
+  
+  const rawIP = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+  let ip = rawIP.replace(/^.*:/, '');
+  if (ip === '1' || ip === '::1') ip = '127.0.0.1';
+
+  // IP speichern
+  nutzer.lastIP = ip;
+
+  // Datei aktualisieren
+  try {
+    fs.writeFileSync(usersPath, JSON.stringify(users, null, 2), 'utf8');
+  } catch (err) {
+    return res.status(500).json({ fehler: 'Fehler beim Speichern der IP.' });
+  }
 
   // Session setzen
   req.session.geschlecht = nutzer.geschlecht
@@ -180,86 +189,50 @@ app.post('/logout', (req, res) => {
   })
 })
 
-app.post('/register', (req, res) => {
-  const { benutzername, alter, geschlecht, password } = req.body
+const server = https.createServer({
+  key: fs.readFileSync('key.pem'),
+  cert: fs.readFileSync('cert.pem')
+}, app);
+require('./webrtc')(server)
 
-  if (!benutzername || !alter || !geschlecht || !password) {
-    return res.status(400).json({ fehler: 'Alle Felder sind erforderlich.' })
-  }
+server.listen(8888, '0.0.0.0', () => {
+  console.log('Servidor web iniciado en todas las interfaces')
+})
 
-  const usersPath = path.join(__dirname, 'users.json')
+function isBanned(req) {
+  const rawIP = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+  let ip = rawIP.replace(/^::ffff:/, '');
+  if (ip === '::1') ip = '127.0.0.1';
 
-  // Datei einlesen oder leeres Array erzeugen
-  let users = []
-  if (fs.existsSync(usersPath)) {
-    const data = fs.readFileSync(usersPath, 'utf8')
-    try {
-      users = JSON.parse(data)
-    } catch (err) {
-      return res.status(500).send('Benutzerdaten beschädigt.')
-    }
-  }
+  const bansPath = path.join(__dirname, 'bans.json');
 
-  // Prüfen ob Benutzername schon existiert
-  const existiert = users.some(user => user.benutzername === benutzername)
-  if (existiert) {
-  return res.status(409).json({ fehler: 'userExists' })
-}
-
-  // Benutzer speichern
-  const neuerUser = {
-  benutzername,
-  alter,
-  geschlecht,
-  password
-}
-
-if (geschlecht === 'weiblich') {
-  neuerUser.verified = false
-}
-
-users.push(neuerUser)
+  if (!fs.existsSync(bansPath)) return "";
 
   try {
-    fs.writeFileSync(usersPath, JSON.stringify(users, null, 2), 'utf8')
-  } catch (err) {
-    return res.status(500).json({ fehler: 'Fehler beim Speichern.' })
-  }
+    const bans = JSON.parse(fs.readFileSync(bansPath, 'utf8'));
+    const eintrag = bans.find(entry => entry.ip === ip);
+    if (eintrag) {
+    	const translationsPath = path.join(__dirname, 'public', 'translations.json');
+        let translations = {};
 
-  // Optional: Session setzen, wenn du willst, dass der User gleich eingeloggt ist
-  req.session.geschlecht = geschlecht
-  req.session.registered = true
-  req.session.username = benutzername
-  res.json({ erfolg: true })
-})
+        try {
+            translations = JSON.parse(fs.readFileSync(translationsPath, 'utf8'));
+        } catch (err) {
+            return res.status(500).send('<p>Fehler beim Laden der Übersetzungen</p>');
+        }
+      
+        const acceptLang = req.headers["accept-language"] || "en";
+        const sprache = acceptLang.startsWith("de") ? "de" :
+                                      acceptLang.startsWith("es") ? "es" : "en";
 
-app.post('/request', upload.single('audio'), (req, res) => {
-  console.log('Datei empfangen:', req.file);
-  res.sendStatus(200);
-});
-
-//Admin requests
-app.post('/get-request-names', (req, res) => {
-  const ordnerPfad = path.join(__dirname, 'verifications', 'requests');
-
-  fs.readdir(ordnerPfad, (err, dateien) => {
-    if (err) {
-      return res.status(500).json({ fehler: 'Ordner konnte nicht gelesen werden.' });
+        const text = translations[sprache]?.ban || 'Fehler';
+        return text.replace('{{REASON}}', eintrag.grund);
     }
-
-    // Nur Dateinamen ohne Erweiterung zurückgeben
-    const namenOhneEndung = dateien.map(datei => path.parse(datei).name);
-
-    res.json({ namen: namenOhneEndung });
-  });
-});
-
-app.listen(8888, () => {
-  console.log('Servidor web iniciado')
-})
-
-function dateiExistiertOhneEndung(ordner, benutzername) {
-  const files = fs.existsSync(ordner) ? fs.readdirSync(ordner) : [];
-
-  return files.some(file => path.parse(file).name === benutzername);
+    else {
+    	return "";
+    }
+  } catch (err) {
+    console.error('Fehler beim Lesen der Ban-Datei:', err);
+    return "";
+  }
 }
