@@ -80,13 +80,9 @@
   </style>
 </head>
 <body>
-<div id="container" class="button-container">
-    <button id="login" onclick="window.location.href='login.html'">Login</button>
-    <button id="register" onclick="window.location.href='registration.html'">Registrieren</button>
-</div>
 <table id="room-table">
     <tr>
-      <td><button id="videochatroom1" class="chatroom-button">Videochatraum</button></td>
+      <td><button onclick="zeigeOverlay(1)" id="videochatroom1" class="chatroom-button">Videochatraum</button></td>
       <td></td>
     </tr>
 </table>
@@ -95,117 +91,17 @@
   <!-- Dein eigener Inhalt hier -->
 </div>
 <script>
-  let gender = null;
-  let registered = false;
-  fetch('/registered')
-    .then(response => response.json())
-    .then(regData => {
-      if (regData.registered) {
-      	registered = true;
-  const container = document.getElementById('container')
-  container.innerHTML = '' // Inhalt leeren
-  container.classList.add('column')
-
-  fetch('/name')
-    .then(response => response.json())
-    .then(nameData => {
-      // Benutzername anzeigen
-      const nameDiv = document.createElement('div')
-      nameDiv.textContent = nameData.name
-      nameDiv.style.margin = '0'
-      nameDiv.style.padding = '0'
-      nameDiv.style.fontSize = '14px'
-      nameDiv.style.lineHeight = '1'
-      
-      // Abstand zum Button genau einstellen
-      nameDiv.style.marginBottom = '2px' // hier millimetergenau steuern
-
-      // Logout-Button
-      const logoutBtn = document.createElement('button')
-      logoutBtn.textContent = getTranslation('logout')
-      logoutBtn.className = 'chatroom-button'
-      logoutBtn.style.margin = '0'
-      logoutBtn.style.padding = '6px 12px'
-      logoutBtn.style.fontSize = '13px'
-      logoutBtn.onclick = () => {
-          fetch('/logout', {
-              method: 'POST'
-          }).then(() => {
-              window.location.href = '/index.html'
-          })
-        }
-
-      // Einfügen
-      container.appendChild(nameDiv)
-      container.appendChild(logoutBtn)
-
-      // Chaträume ggf. anzeigen
-      fetch('/geschlecht')
-        .then(response => response.json())
-        .then(data => {
-          if (data.geschlecht === 'weiblich') {
-          	gender = "w"
-            const table = document.getElementById('room-table')
-
-            const tr1 = document.createElement('tr')
-            tr1.innerHTML = `<td><button id="videochatroom2" class="chatroom-button">` + getTranslation("videochatroom2") + `</button></td><td></td>`
-            table.appendChild(tr1)
-
-            const tr2 = document.createElement('tr')
-            tr2.innerHTML = `<td><button onclick="zeigeOverlay()" id="videochatroom3" class="chatroom-button">` + getTranslation("videochatroom3") + `</button></td><td></td>`
-            table.appendChild(tr2)
-          }
-        })
-    })
-} else {
-        // Und jetzt den ursprünglichen /geschlecht-Fetch starten
-        fetch('/geschlecht')
-          .then(response => response.json())
-          .then(data => {
-            if (data.geschlecht === 'weiblich') {
-            	gender = "w"
-              const table = document.getElementById('room-table')
-
-              const tr1 = document.createElement('tr')
-              tr1.innerHTML = `<td><button id="videochatroom2" class="chatroom-button">` + getTranslation("videochatroom2") + `</button></td><td></td>`
-              table.appendChild(tr1)
-
-              const tr2 = document.createElement('tr')
-              tr2.innerHTML = `<td><button onclick="zeigeOverlay()" id="videochatroom3" class="chatroom-button">` + getTranslation("videochatroom3") + `</button></td><td></td>`
-              table.appendChild(tr2)
-            }
-          })
-      }
-    })
-    
-function zeigeOverlay() {
+function zeigeOverlay(room) {
   document.getElementById('overlay').style.display = 'block'
   document.getElementById('room-table').style.display = 'none'
-  if (gender == "w") {
-  	if (registered === true) {
-    const iframe = document.createElement('iframe');
-iframe.src = '/upload-page';
+  const iframe = document.createElement('iframe');
+iframe.src = '/upload-page?room=' + room;
 iframe.className = 'overlay-inhalt';
 iframe.style.width = '100%';
-iframe.style.height = '100vh';
+iframe.style.height = '80vh';
 iframe.style.border = 'none';
 
-document.getElementById('overlay').style.display = 'block';
 document.getElementById('overlay').appendChild(iframe);
-}
-      else {
-      	const overlay = document.getElementById('overlay')
-  overlay.style.display = 'block'
-
-  const inhalt = document.createElement('div')
-  inhalt.className = 'overlay-inhalt'
-  inhalt.innerHTML = `
-    <h2>` + getTranslation("privateTitle") + `</h2>
-    <p>` + getTranslation("privateText") + `</p>
-  `
-  overlay.appendChild(inhalt)
-      }
-  }
 }
 
 document.getElementById('zurueck-icon').addEventListener('click', () => {
