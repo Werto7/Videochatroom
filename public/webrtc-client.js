@@ -3,14 +3,12 @@
   let currentCamera = "user"; // front
   const localVideo = document.getElementById("local-video");
   const fullscreenVideo = document.getElementById("fullscreen-video");
-  let localStream;
-  let videoTrack;
-  let audioTrack;
-  await startLocalStream();
-  const socket = io({ query: { room, username, gender }});
-  sendMediaStatus();
-const peers = {};          // socketId → RTCPeerConnection
-const containers = {};     // socketId → DOM-Container
+  const socket = io();
+
+let localStream = null;
+let videoTrack = null;
+let audioTrack = null;
+  
 const mainContainer = document.getElementById("main-container");
 
 const actionBar = document.getElementById("action-bar");
@@ -19,45 +17,80 @@ const videoIcon = document.getElementById("video-icon");
 const switchBtn = document.getElementById("switch-camera");
 const secondContainer = document.getElementById("second-container");
 
-// Medien holen
+const peers = {};
+const containers = {};
+const roomname = room;
+
+let pc = null;
+
+//Get media
 async function startVideo() {
-  const videoStream = await navigator.mediaDevices.getUserMedia({
-    video: { facingMode: currentCamera }
-  });
-  const newVideoTrack = videoStream.getVideoTracks()[0];
-
-  if (!localStream) {
-    localStream = new MediaStream();
+  if (!isPcReady()) {
+      alert("createOffer not possible: pc not ready");
+      return;
   }
+  try {
+    const videoStream = await navigator.mediaDevices.getUserMedia({
+      video: { 
+          facingMode: currentCamera,
+          width: { ideal: 640 },  // 640px = 360p (Breite)
+          height: { ideal: 360 },
+          frameRate: { ideal: 30 }
+      }
+    });
+    const newVideoTrack = videoStream.getVideoTracks()[0];
 
-  if (videoTrack) {
-    videoTrack.stop();
-    localStream.removeTrack(videoTrack);
+    if (!localStream) {
+      localStream = new MediaStream();
+    }
+
+    if (videoTrack) {
+      videoTrack.stop();
+      localStream.removeTrack(videoTrack);
+    }
+
+    localStream.addTrack(newVideoTrack);
+    videoTrack = newVideoTrack;
+
+    // Set local video stream
+    localVideo.srcObject = null;
+    localVideo.srcObject = localStream;
+
+    //Only set the icon if everything worked
+    videoIcon.src = "/icons/video-on.jpg";
+
+    await renegotiate?.();
+  } catch (error) {
+    console.error("Error starting the camera:", error);
+    alert("Camera could not be activated: " + (error.message || error));
   }
-
-  localStream.addTrack(newVideoTrack);
-  videoTrack = newVideoTrack;
-
-  // Wichtig: Setze das komplette localStream neu als Quelle!
-  localVideo.srcObject = null;
-  localVideo.srcObject = localStream;
 }
 
 async function startAudio() {
-  const audioStream = await navigator.mediaDevices.getUserMedia({
-    audio: true
-  });
-  const newAudioTrack = audioStream.getAudioTracks()[0];
-  if (!localStream) {
-    localStream = new MediaStream();
+  if (!isPcReady()) {
+      alert("createOffer not possible: pc not ready");
+      return;
   }
-  if (audioTrack) {
-    audioTrack.stop();
-    localStream.removeTrack(audioTrack);
+  try {
+  	const audioStream = await navigator.mediaDevices.getUserMedia({
+          audio: true
+      });
+      const newAudioTrack = audioStream.getAudioTracks()[0];
+      if (!localStream) {
+          localStream = new MediaStream();
+      }
+      if (audioTrack) {
+          audioTrack.stop();
+          localStream.removeTrack(audioTrack);
+      }
+      localStream.addTrack(newAudioTrack);
+      audioTrack = newAudioTrack;
+      localVideo.srcObject = localStream;
+      micIcon.src = "/icons/mic-on.jpg";
+      await renegotiate?.();
+  } catch (error) {
+  	alert("Microphone could not be activated: " + (error.message || error));
   }
-  localStream.addTrack(newAudioTrack);
-  audioTrack = newAudioTrack;
-  localVideo.srcObject = localStream;
 }
 
 async function startLocalStream() {
@@ -67,7 +100,7 @@ async function startLocalStream() {
   await Promise.all([startVideo(), startAudio()]);
 }
 
-// Mikrofon ein/aus
+//Microphone on/off
 micIcon.addEventListener("click", async () => {
   try {
     if (audioTrack && audioTrack.readyState !== "ended") {
@@ -77,34 +110,49 @@ micIcon.addEventListener("click", async () => {
       micIcon.src = "/icons/mic-off.jpg";
     } else {
       await startAudio();
-      micIcon.src = "/icons/mic-on.jpg";
     }
-    sendMediaStatus();
+
+    //Create and send new SDP offers after track changes
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    socket.emit("offer", { sdp: pc.localDescription });
   } catch (error) {
-    alert("Fehler beim Umschalten des Mikrofons:", error);
+    alert("Error switching microphone: " + error.message);
   }
 });
 
-// Video ein/aus
+//video on/off
 videoIcon.addEventListener("click", async () => {
   if (videoTrack && videoTrack.readyState === "live") {
     videoTrack.stop();
     localStream.removeTrack(videoTrack);
+    pc.getSenders().forEach(sender => {
+      if (sender.track === videoTrack) {
+        pc.removeTrack(sender);
+      }
+    });
     videoTrack = null;
     videoIcon.src = "/icons/video-off.jpg";
   } else {
     await startVideo();
+    //Add new video track to pc;
+    const newVideoTrack = videoTrack; //from startVideo()
+    pc.addTrack(newVideoTrack, localStream);
     videoIcon.src = "/icons/video-on.jpg";
   }
-  sendMediaStatus();
+
+  //Now: Create new offer, send to server
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  socket.emit("offer", { sdp: pc.localDescription });
 });
 
-// Kamera wechseln
+//Switch camera
 switchBtn.addEventListener("click", async () => {
   try {
     currentCamera = currentCamera === "user" ? "environment" : "user";
 
-    // Nur Kamera wechseln, Mikrofon bleibt erhalten
+    //Just change camera, microphone remains
     if (videoTrack) {
       videoTrack.stop();
       localStream.removeTrack(videoTrack);
@@ -128,9 +176,9 @@ switchBtn.addEventListener("click", async () => {
     videoIcon.src = "/icons/video-on.jpg";
     sendMediaStatus();
 
-    console.log("Kamera gewechselt:", newVideoTrack.label);
+    console.log("Camera changed:", newVideoTrack.label);
   } catch (error) {
-    console.error("Fehler beim Kamerawechsel:", error);
+    console.error("Error when changing camera:", error);
   }
 });
 
@@ -150,116 +198,101 @@ fullscreenVideo.addEventListener("dblclick", () => {
     secondContainer.style.display = "none";
     mainContainer.style.display = "block";
   });
-  
-socket.on("roomData", users => {
-  // users ist ein Object socketId → { userId, username, gender }
-  // 1. Entferne Container, die nicht mehr da sind
-  Object.keys(containers).forEach(id => {
-    if (!users[id]) {
-      mainContainer.removeChild(containers[id]);
-      delete containers[id];
-      if (peers[id]) {
-        peers[id].close();
-        delete peers[id];
+
+async function joinRoom() {
+  socket.emit("join", {
+  roomName: roomname,
+  userName: username,
+  userGender: gender
+});
+
+  socket.on("joined", async ({ userId }) => {
+    pc = new RTCPeerConnection();
+    await startLocalStream();
+    //Add local tracks
+    localStream.getTracks().forEach((track) => {
+      pc.addTrack(track, localStream);
+    });
+
+    //Receive remote track
+    pc.ontrack = (event) => {
+      const stream = event.streams[0];
+      const track = event.track;
+      const remoteId = track.id;
+
+      if (!containers[remoteId]) {
+        const div = document.createElement("div");
+        div.classList.add("video-container");
+
+        const video = document.createElement("video");
+        video.autoplay = true;
+        video.playsInline = true;
+        video.srcObject = stream;
+        div.appendChild(video);
+
+        mainContainer.appendChild(div);
+        containers[remoteId] = div;
       }
+    };
+    
+    if (pc.signalingState !== "stable") {
+        await new Promise((resolve) => {
+            const checkState = () => {
+                if (pc.signalingState === "stable") {
+                    pc.removeEventListener("signalingstatechange", checkState);
+                    resolve();
+                }
+            };
+            pc.addEventListener("signalingstatechange", checkState);
+        });
     }
-  });
 
-  // 2. Für alle verbleibenden Users: Container ggf. neu anlegen + Peer starten
-  Object.entries(users).forEach(([id, meta]) => {
-    if (id === socket.id) return; // unser eigenes Video überspringen
-    if (!containers[id]) {
-      // Container neu erzeugen
-      const div = document.createElement("div");
-      div.classList.add("video-container");
-      // Gender-Icon
-      const g = document.createElement("img");
-      g.src = meta.gender === "male" ? "/icons/male.png" : "/icons/female.png";
-      g.classList.add("gender-icon");
-      div.appendChild(g);
-      // Video-Element
-      const v = document.createElement("video");
-      v.autoplay = true;
-      v.playsInline = true;
-      div.appendChild(v);
-      // Overlay mit Name + Mic-Status
-      const ov = document.createElement("div");
-      ov.classList.add("overlay");
-      const micImg = document.createElement("img");
-      micImg.classList.add("mic-off");
-      micImg.src = "/icons/mic-off.jpg";
-      micImg.style.display = "none"; // initial
-      const nameLabel = document.createElement("span");
-      nameLabel.classList.add("label");
-      nameLabel.textContent = meta.username;
-      ov.appendChild(micImg);
-      ov.appendChild(nameLabel);
-      div.appendChild(ov);
+    // ICE-Candidates
+    pc.onicecandidate = ({ candidate }) => {
+      if (candidate) {
+        socket.emit("candidate", { candidate });
+      }
+    };
 
-      mainContainer.appendChild(div);
-      containers[id] = div;
-
-      // PeerConnection initialisieren
-      const isNewUser = Object.keys(users).indexOf(socket.id) > Object.keys(users).indexOf(id);
-      initPeer(id, v, isNewUser);
-    }
-  });
-});
-
-socket.on("signal", async ({ from, data }) => {
-  const pc = peers[from];
-  if (!pc) return;
-
-  if (data.description) {
-    await pc.setRemoteDescription(data.description);
-    if (data.description.type === "offer") {
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      socket.emit("signal", {
-        to: from,
-        from: socket.id,
-        data: { description: pc.localDescription }
-      });
-    }
-  } else if (data.candidate) {
-    try {
-      await pc.addIceCandidate(data.candidate);
-    } catch (err) {
-      console.error("Fehler bei addIceCandidate:", err);
-    }
-  }
-});
-
-async function initPeer(remoteId, videoElem, sendOffer = false) {
-  while (!localStream) await new Promise(r => setTimeout(r, 100));
-
-  const pc = new RTCPeerConnection(/* ... */);
-  peers[remoteId] = pc;
-
-  localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
-
-  pc.onicecandidate = ({ candidate }) => {
-    if (candidate) {
-      socket.emit("signal", { to: remoteId, from: socket.id, data: { candidate } });
-    }
-  };
-
-  pc.ontrack = ({ streams: [stream] }) => {
-    videoElem.srcObject = stream;
-  };
-
-  if (sendOffer) {
+    //Create Offer
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
-    socket.emit("signal", { to: remoteId, from: socket.id, data: { description: pc.localDescription } });
-  }
+    socket.emit("offer", { sdp: pc.localDescription });
+  });
+
+  socket.on("answer", async ({ sdp }) => {
+    await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+  });
+
+  socket.on("candidate", async ({ candidate }) => {
+    try {
+      await pc.addIceCandidate(new RTCIceCandidate(candidate));
+    } catch (err) {
+      console.error("Error adding remote ICE candidate:", err);
+    }
+  });
 }
 
-async function sendMediaStatus() {
-  while (!socket) await new Promise(r => setTimeout(r, 100));
-  socket.emit("mediaStatus", {
-    video: videoTrack?.enabled,
-    audio: audioTrack?.enabled
-  });
+joinRoom(); //start automatic
+
+async function renegotiate() {
+  if (pc.signalingState !== "stable") {
+        await new Promise((resolve) => {
+            const checkState = () => {
+                if (pc.signalingState === "stable") {
+                    pc.removeEventListener("signalingstatechange", checkState);
+                    resolve();
+                }
+            };
+            pc.addEventListener("signalingstatechange", checkState);
+        });
+    }
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  socket.emit("offer", { sdp: pc.localDescription });
+}
+
+function isPcReady() {
+  return pc && typeof pc.createOffer === "function";
 }
 })();
