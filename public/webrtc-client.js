@@ -22,13 +22,10 @@ const containers = {};
 const roomname = room;
 
 let pc = null;
+let remoteCount = 0;
 
 //Get media
 async function startVideo() {
-  if (!isPcReady()) {
-      alert("createOffer not possible: pc not ready");
-      return;
-  }
   try {
     const videoStream = await navigator.mediaDevices.getUserMedia({
       video: { 
@@ -67,10 +64,6 @@ async function startVideo() {
 }
 
 async function startAudio() {
-  if (!isPcReady()) {
-      alert("createOffer not possible: pc not ready");
-      return;
-  }
   try {
   	const audioStream = await navigator.mediaDevices.getUserMedia({
           audio: true
@@ -207,8 +200,8 @@ async function joinRoom() {
 });
 
   socket.on("joined", async ({ userId }) => {
-    pc = new RTCPeerConnection();
     await startLocalStream();
+    pc = new RTCPeerConnection();
     //Add local tracks
     localStream.getTracks().forEach((track) => {
       pc.addTrack(track, localStream);
@@ -216,23 +209,24 @@ async function joinRoom() {
 
     //Receive remote track
     pc.ontrack = (event) => {
-      const stream = event.streams[0];
-      const track = event.track;
-      const remoteId = track.id;
+    	const id = `remote-${remoteCount++}`;
+    
+        if (containers[id]) return;
+    
+    	const remoteStream = new MediaStream();
+        remoteStream.addTrack(event.track);
 
-      if (!containers[remoteId]) {
         const div = document.createElement("div");
         div.classList.add("video-container");
-
+        
         const video = document.createElement("video");
         video.autoplay = true;
         video.playsInline = true;
-        video.srcObject = stream;
-        div.appendChild(video);
+        video.srcObject = remoteStream;
 
+        div.appendChild(video);
         mainContainer.appendChild(div);
-        containers[remoteId] = div;
-      }
+        containers[id] = div; 
     };
     
     if (pc.signalingState !== "stable") {
@@ -271,11 +265,26 @@ async function joinRoom() {
       console.error("Error adding remote ICE candidate:", err);
     }
   });
+  
+  socket.on("disconnect", () => {
+  if (pc) {
+    pc.close();
+    pc = null;
+  }
+  localStream?.getTracks().forEach(t => t.stop());
+  localStream = null;
+  videoTrack = null;
+  audioTrack = null;
+});
 }
 
 joinRoom(); //start automatic
 
 async function renegotiate() {
+  if (!pc) {
+    console.warn("Cannot renegotiate: pc is null");
+    return;
+  }
   if (pc.signalingState !== "stable") {
         await new Promise((resolve) => {
             const checkState = () => {
