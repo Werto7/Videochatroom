@@ -10,41 +10,59 @@ module.exports = function (server) {
     let userId = socket.id;
     let peer = null;
 
-    socket.on("join", async ({ roomName, username, userGender}) => {
-      currentRoom = roomName;
-      if (!rooms.has(roomName)) rooms.set(roomName, new Map());
+    socket.on("join", async ({ roomName, username, userGender }) => {
+        currentRoom = roomName;
+        if (!rooms.has(roomName)) rooms.set(roomName, new Map());
 
-      // create a new peer connection for this user
-      peer = new RTCPeerConnection();
-      rooms.get(roomName).set(userId, { socket, peer, username, userGender});
+        //Create peer for new user
+        peer = new RTCPeerConnection();
+        rooms.get(roomName).set(userId, { socket, peer, username, userGender });
 
-      // when this peer gets a track, forward it to other users
-      peer.ontrack = (event) => {
-        rooms.get(roomName).forEach(({ socket: otherSocket, peer: otherPeer }, otherId) => {
-          if (otherId === userId) return;
-          for (const track of event.streams[0].getTracks()) {
-            otherPeer.addTrack(track, event.streams[0]);
-          }
-        });
-      };
+        const roomPeers = rooms.get(roomName);
 
-      socket.emit("joined", { userId });
-    });
+         // ⬇️ Send previous tracks of other peers to new user
+         for (const [otherUserId, otherPeerObj] of roomPeers.entries()) {
+             if (otherUserId === userId) continue;
+
+             for (const oldTrack of otherPeerObj.tracks || []) {
+                 await peer.addTrack(oldTrack);
+             }
+         }
+
+         //If this new peer receives tracks, forward them to others
+         peer.onTrack.subscribe((track) => {
+         console.log(`[${userId}] Received track, forwarding to others in room [${roomName}]`);
+
+         //Save track
+         const user = rooms.get(roomName).get(userId);
+         if (!user.tracks) user.tracks = [];
+         user.tracks.push(track);
+
+         for (const [otherUserId, otherUser] of rooms.get(roomName)) {
+             if (otherUserId === userId) continue;
+
+             otherUser.peer.addTrack(track);
+             console.log(`--> Forwarded track to [${otherUserId}]`);
+         }
+     });
+
+   socket.emit("joined", { userId });
+   });
 
     socket.on("offer", async ({ sdp }) => {
-        try {
-            if (peer.signalingState !== "stable") {
-                console.warn(`Signaling state is ${peer.signalingState}, expecting 'stable'.`);
-                return;
-            }
-
-            await peer.setRemoteDescription(sdp);
-            const answer = await peer.createAnswer();
-            await peer.setLocalDescription(answer);
-            socket.emit("answer", { sdp: peer.localDescription });
-        } catch (err) {
-            console.error("Error setting the remote description:", err);
+      try {
+        if (peer.signalingState !== "stable") {
+          console.warn(`Signaling state is ${peer.signalingState}, expecting 'stable'.`);
+          return;
         }
+
+        await peer.setRemoteDescription(sdp);
+        const answer = await peer.createAnswer();
+        await peer.setLocalDescription(answer);
+        socket.emit("answer", { sdp: peer.localDescription });
+      } catch (err) {
+        console.error("Error setting the remote description:", err);
+      }
     });
 
     socket.on("candidate", async ({ candidate }) => {
